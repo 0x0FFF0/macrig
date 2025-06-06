@@ -1,0 +1,10 @@
+# Ignore everything by default
+*
+
+# But include these specific files
+!install.sh
+!syspolicy.py
+!requirements.txt
+
+# Also include .gitignore itself
+!.gitignore 
