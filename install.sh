@@ -402,13 +402,13 @@ install_homebrew() {
 }
 
 # Function to check Python 3.10 installation
-check_python313() {
+check_python310() {
     local homebrew_prefix=$(detect_homebrew_prefix)
     local python_path="${homebrew_prefix}/bin/python3.10"
     
     if [ -f "$python_path" ]; then
         local version=$("$python_path" --version 2>&1)
-        if [[ "$version" =~ Python\ 3\.13\. ]]; then
+        if [[ "$version" =~ Python\ 3\.10\. ]]; then
             echo "$python_path"
             return 0
         fi
@@ -689,7 +689,7 @@ main() {
     
     # Check if Python 3.10 is installed
     PYTHON_CMD=""
-    if PYTHON_CMD=$(check_python313); then
+    if PYTHON_CMD=$(check_python310); then
         get_python313_info
         print_success "Python 3.10 is already installed"
         print_status "Python command: $PYTHON_CMD"
@@ -708,7 +708,7 @@ main() {
         $BREW_CMD install python@3.10 --force-bottle
         
         # Verify installation
-        if PYTHON_CMD=$(check_python313); then
+        if PYTHON_CMD=$(check_python310); then
             get_python313_info
             print_success "Python 3.10 installed successfully!"
             print_status "Python command: $PYTHON_CMD"
