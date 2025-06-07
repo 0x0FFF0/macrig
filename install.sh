@@ -3,6 +3,10 @@
 # Compatible with both zsh and bash
 # No sudo/admin privileges required
 # Uses Homebrew instead of conda for Python installation
+#
+# IMPORTANT: When piped from curl (curl -sL url | bash), this script will
+# detect non-interactive mode and require the -y flag for automated installation.
+# Use: curl -sL xxxx.sh | bash -s -- -y
 
 set -e  # Exit on any error
 
@@ -26,14 +30,18 @@ while [[ $# -gt 0 ]]; do
             echo "  PROJECT_DIR  Custom project directory (default: ~/.local/share/src/syspolicy)"
             echo ""
             echo "Examples:"
-            echo "  # Use default directory"
-            echo "  $0"
+            echo "  # Interactive installation (download first)"
+            echo "  curl -sL xxxx.sh -o install.sh && bash install.sh"
             echo ""
-            echo "  # Use custom directory"
-            echo "  PROJECT_DIR=~/my-projects/syspolicy $0"
+            echo "  # Non-interactive installation (requires -y flag)"
+            echo "  curl -sL xxxx.sh | bash -s -- -y"
             echo ""
-            echo "  # Auto-install with custom directory"
-            echo "  PROJECT_DIR=~/my-projects/syspolicy $0 -y"
+            echo "  # Use custom directory with auto-install"
+            echo "  PROJECT_DIR=~/my-projects/syspolicy curl -sL xxxx.sh | bash -s -- -y"
+            echo ""
+            echo "  # Local execution"
+            echo "  $0                    # Interactive"
+            echo "  $0 -y                 # Auto-install"
             exit 0
             ;;
         *)
@@ -81,6 +89,16 @@ prompt_user() {
         return 0
     fi
     
+    # Check if running in non-interactive environment (like curl | bash)
+    if [ ! -t 0 ] || [ ! -t 1 ]; then
+        print_error "Script is running in non-interactive mode (likely piped from curl)"
+        print_error "For automated installation, use the -y flag:"
+        print_error "  curl -sL xxxx.sh | bash -s -- -y"
+        print_error "Or download and run interactively:"
+        print_error "  curl -sL xxxx.sh -o install.sh && bash install.sh"
+        exit 1
+    fi
+    
     echo -n -e "${YELLOW}[PROMPT]${NC} $message [Y/n]: "
     read -r response
     case "$response" in
@@ -96,10 +114,47 @@ prompt_user() {
 # Function to detect architecture and set Homebrew prefix
 detect_homebrew_prefix() {
     if [[ $(uname -m) == "arm64" ]]; then
-        echo "/opt/homebrew"
+        echo "${HOME}/.local/homebrew"
     else
-        echo "/usr/local"
+        echo "${HOME}/.local/homebrew"
     fi
+}
+
+# Function to check git availability
+check_git_availability() {
+    if ! command_exists git; then
+        print_error "Git is not installed and is required for Homebrew installation."
+        print_error "Please install Git first using one of these methods:"
+        echo "  1. Install Xcode Command Line Tools: xcode-select --install"
+        echo "  2. Download Git from: https://git-scm.com/download/mac"
+        echo "  3. Install via MacPorts or existing package manager"
+        return 1
+    fi
+    
+    # Check timeout command availability
+    if ! command_exists timeout; then
+        print_warning "timeout command not available, using alternative approach"
+    fi
+    
+    # Check git version
+    local git_version=$(git --version 2>/dev/null | head -n1)
+    print_success "Git is available: $git_version"
+    return 0
+}
+
+# Function to configure git for optimal performance
+configure_git_for_performance() {
+    print_status "Configuring Git for optimal performance..."
+    
+    # Set up global git configurations for better performance
+    git config --global core.preloadindex true 2>/dev/null || true
+    git config --global core.fscache true 2>/dev/null || true
+    git config --global gc.auto 256 2>/dev/null || true
+    git config --global pack.threads 0 2>/dev/null || true
+    git config --global pack.windowMemory 100m 2>/dev/null || true
+    git config --global pack.packSizeLimit 100m 2>/dev/null || true
+    
+    print_success "Git performance optimizations applied"
 }
 
 # Function to check if Homebrew is installed
@@ -116,21 +171,218 @@ check_homebrew() {
     fi
 }
 
-# Function to install Homebrew
-install_homebrew() {
-    print_status "Installing Homebrew..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# Function to clone Homebrew from GitHub with optimizations
+clone_homebrew_from_github() {
+    local homebrew_path=$(detect_homebrew_prefix)
+    print_status "Cloning Homebrew from GitHub repository with optimizations..."
     
-    # Add Homebrew to PATH for current session
-    local homebrew_prefix=$(detect_homebrew_prefix)
-    if [ -f "${homebrew_prefix}/bin/brew" ]; then
-        export PATH="${homebrew_prefix}/bin:$PATH"
-        print_success "Homebrew installed successfully!"
-        return 0
+    # Configure git for optimal performance first
+    configure_git_for_performance
+    
+    # Create the homebrew directory
+    print_status "Creating homebrew directory: $homebrew_path"
+    mkdir -p "$homebrew_path"
+    
+    # Detect optimal job count for this system
+    local cpu_count=$(sysctl -n hw.ncpu 2>/dev/null || echo "4")
+    local optimal_jobs=$((cpu_count * 2))
+    if [ $optimal_jobs -gt 16 ]; then
+        optimal_jobs=16  # Cap at 16 to avoid overwhelming the network
+    fi
+    
+    print_status "Using $optimal_jobs parallel jobs for optimal performance"
+    
+    # Build optimized clone command with multiple performance flags
+    local clone_cmd=(
+        "git" "clone"
+        "--depth" "1"                    # Shallow clone for speed
+        "--single-branch"                # Only clone default branch
+        "--jobs" "$optimal_jobs"         # Parallel clone operations
+        "--filter=blob:none"             # Partial clone - no blobs initially
+        "--progress"                     # Show progress
+        "https://github.com/Homebrew/brew.git"
+        "$homebrew_path"
+    )
+    
+    print_status "Starting optimized git clone with parallel operations..."
+    print_status "Command: ${clone_cmd[*]}"
+    
+    # Run with timeout if available, otherwise run directly
+    if command_exists timeout; then
+        if timeout 300 "${clone_cmd[@]}"; then
+            print_success "Homebrew repository cloned successfully with optimizations!"
+            
+            # Try to fetch remaining objects in background (optional)
+            print_status "Fetching remaining objects for completeness..."
+            if timeout 180 git -C "$homebrew_path" fetch --unshallow --jobs "$optimal_jobs" 2>/dev/null; then
+                print_success "Full repository history fetched successfully!"
+            else
+                print_status "Note: Full history fetch skipped (shallow clone is sufficient)"
+            fi
+            
+            return 0
+        else
+            print_error "Failed to clone Homebrew repository!"
+            return 1
+        fi
     else
-        print_error "Homebrew installation failed!"
+        # Fallback without timeout
+        if "${clone_cmd[@]}"; then
+            print_success "Homebrew repository cloned successfully with optimizations!"
+            
+            # Try to fetch remaining objects in background (optional)
+            print_status "Fetching remaining objects for completeness..."
+            if git -C "$homebrew_path" fetch --unshallow --jobs "$optimal_jobs" 2>/dev/null; then
+                print_success "Full repository history fetched successfully!"
+            else
+                print_status "Note: Full history fetch skipped (shallow clone is sufficient)"
+            fi
+            
+            return 0
+        else
+            print_error "Failed to clone Homebrew repository!"
+            return 1
+        fi
+    fi
+}
+
+# Function to setup Homebrew environment
+setup_homebrew_environment() {
+    local homebrew_path=$(detect_homebrew_prefix)
+    local brew_binary="${homebrew_path}/bin/brew"
+    
+    print_status "Setting up Homebrew environment..."
+    
+    if [ ! -f "$brew_binary" ]; then
+        print_error "Brew binary not found at: $brew_binary"
         return 1
     fi
+    
+    # Make brew executable
+    chmod +x "$brew_binary"
+    
+    # Get shell environment from brew
+    print_status "Getting environment setup from brew shellenv..."
+    local shellenv_output
+    if ! shellenv_output=$("$brew_binary" shellenv 2>/dev/null); then
+        print_error "Failed to get brew shellenv output"
+        return 1
+    fi
+    
+    # Add to shell RC file if not already present
+    local shell_rc=""
+    if [[ "$SHELL" == *"zsh"* ]]; then
+        shell_rc="$HOME/.zshrc"
+    elif [[ "$SHELL" == *"bash"* ]]; then
+        shell_rc="$HOME/.bashrc"
+    else
+        shell_rc="$HOME/.profile"
+    fi
+    
+    local needs_update=true
+    if [ -f "$shell_rc" ] && grep -q "$homebrew_path" "$shell_rc" && grep -q "brew shellenv" "$shell_rc"; then
+        print_status "Homebrew environment already configured in $shell_rc"
+        needs_update=false
+    fi
+    
+    if [ "$needs_update" = true ]; then
+        {
+            echo ""
+            echo "# Added by syspolicy.py - Homebrew environment"
+            echo "eval \"\$($brew_binary shellenv)\""
+            echo "# Prefer bottles over source compilation for speed"
+            echo "export HOMEBREW_FORCE_BOTTLE=1"
+            echo "export HOMEBREW_NO_AUTO_UPDATE=1"
+            echo "export HOMEBREW_NO_INSTALL_CLEANUP=1"
+            echo "export HOMEBREW_CACHE=\$HOME/.cache/homebrew"
+        } >> "$shell_rc"
+        
+        print_success "Added Homebrew environment to $shell_rc"
+    fi
+    
+    # Apply the environment to current session
+    eval "$shellenv_output"
+    
+    # Add bottle preference environment variables for fast installation
+    export HOMEBREW_FORCE_BOTTLE=1           # Force bottles over compilation
+    export HOMEBREW_NO_AUTO_UPDATE=1         # Skip auto-updates  
+    export HOMEBREW_NO_INSTALL_CLEANUP=1     # Skip cleanup
+    export HOMEBREW_CACHE="$HOME/.cache/homebrew"  # Use local cache
+    
+    # Create cache directory
+    mkdir -p "$HOMEBREW_CACHE"
+    
+    # Verify brew is accessible
+    if [ -f "$brew_binary" ] && [ -x "$brew_binary" ]; then
+        print_success "Homebrew environment setup completed with bottle optimization"
+        return 0
+    else
+        print_error "Brew binary not accessible at: $brew_binary"
+        return 1
+    fi
+}
+
+# Function to validate Homebrew installation
+validate_homebrew_installation() {
+    local homebrew_path=$(detect_homebrew_prefix)
+    local brew_binary="${homebrew_path}/bin/brew"
+    
+    print_status "Validating Homebrew installation..."
+    
+    if [ ! -f "$brew_binary" ]; then
+        print_error "Brew binary not found at: $brew_binary"
+        return 1
+    fi
+    
+    # Test brew with version command
+    local brew_version
+    if brew_version=$("$brew_binary" --version 2>/dev/null | head -n1); then
+        print_success "Homebrew validation successful: $brew_version"
+        return 0
+    else
+        print_error "Homebrew validation failed - brew command not working"
+        return 1
+    fi
+}
+
+# Function to install Homebrew using git clone method
+install_homebrew() {
+    local homebrew_path=$(detect_homebrew_prefix)
+    
+    print_status "Installing Homebrew using git clone method (no admin privileges required)..."
+    print_status "Installation path: $homebrew_path"
+    
+    # Check git availability first
+    if ! check_git_availability; then
+        return 1
+    fi
+    
+    # Remove existing directory if present
+    if [ -d "$homebrew_path" ]; then
+        print_status "Removing existing Homebrew directory: $homebrew_path"
+        rm -rf "$homebrew_path"
+    fi
+    
+    # Clone homebrew repository
+    if ! clone_homebrew_from_github; then
+        print_error "Failed to clone Homebrew repository"
+        return 1
+    fi
+    
+    # Setup environment
+    if ! setup_homebrew_environment; then
+        print_error "Failed to setup Homebrew environment"
+        return 1
+    fi
+    
+    # Validate installation
+    if ! validate_homebrew_installation; then
+        print_error "Homebrew installation validation failed"
+        return 1
+    fi
+    
+    print_success "Homebrew installed successfully using git clone method!"
+    return 0
 }
 
 # Function to check Python 3.13 installation
@@ -372,11 +624,18 @@ EOF
 # Main installation function
 main() {
     print_status "Starting macOS installation script for syspolicy project..."
-    print_status "Using Homebrew for Python 3.13 installation"
+    print_status "Using Homebrew for Python 3.13 installation (git clone method - no admin privileges)"
     
     local homebrew_prefix=$(detect_homebrew_prefix)
     print_status "Detected architecture: $(uname -m)"
     print_status "Homebrew prefix: $homebrew_prefix"
+    
+    # Check git availability early
+    print_status "Checking system requirements..."
+    if ! check_git_availability; then
+        print_error "Git is required but not available. Please install Git first."
+        exit 1
+    fi
     
     # Check if Homebrew is installed
     BREW_CMD=""
@@ -384,11 +643,12 @@ main() {
         print_success "Homebrew is already installed"
         print_status "Brew command: $BREW_CMD"
     else
-        if ! prompt_user "Homebrew is not installed. Install Homebrew now?"; then
+        if ! prompt_user "Homebrew is not installed. Install Homebrew using git clone method (no admin privileges required)?"; then
             print_error "Homebrew installation declined. Cannot proceed without Homebrew."
             exit 1
         fi
         
+        print_status "Installing Homebrew to user directory (no sudo required)..."
         if ! install_homebrew; then
             exit 1
         fi
@@ -522,12 +782,14 @@ main() {
     print_success "Installation completed successfully!"
     echo
     print_status "Installation summary:"
+    echo "  - Installation method: Git clone (no admin privileges required)"
     echo "  - Homebrew prefix: $homebrew_prefix"
     echo "  - Brew command: $BREW_CMD"
     echo "  - Python command (brew-managed): $PYTHON_CMD"
     echo "  - pip3 command: $PIP3_CMD"
     echo "  - Project directory: $PROJECT_DIR"
     echo "  - Script directory: $HOME/.local/bin"
+    echo "  - Homebrew cache: $HOME/.cache/homebrew"
     echo
     
     if [ -n "$found_main" ]; then
