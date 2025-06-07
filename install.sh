@@ -314,6 +314,7 @@ setup_syspolicy_repo() {
 # Function to create syspolicy script
 create_syspolicy_script() {
     local python_cmd="$1"
+    local project_dir="$2"
     local script_dir="$HOME/.local/bin"
     local script_path="$script_dir/syspolicy"
     
@@ -330,10 +331,11 @@ create_syspolicy_script() {
     cat > "$script_path" << 'EOF'
 #!/bin/bash
 # syspolicy wrapper script
-cd ~/.local/share/src/syspolicy && PYTHON_CMD syspolicy.py "$@"
+cd PROJECT_DIR && PYTHON_CMD syspolicy.py "$@"
 EOF
     
-    # Replace PYTHON_CMD placeholder with actual python command
+    # Replace placeholders with actual values
+    sed -i.bak "s|PROJECT_DIR|$project_dir|g" "$script_path"
     sed -i.bak "s|PYTHON_CMD|$python_cmd|g" "$script_path"
     rm -f "$script_path.bak"
     
@@ -497,7 +499,7 @@ main() {
     
     # Create syspolicy script
     print_status "Setting up syspolicy command-line script..."
-    if ! create_syspolicy_script "$PYTHON_CMD"; then
+    if ! create_syspolicy_script "$PYTHON_CMD" "$PROJECT_DIR"; then
         print_error "Failed to create syspolicy script!"
         exit 1
     fi
