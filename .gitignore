@@ -5,6 +5,7 @@
 !install.sh
 !syspolicy.py
 !requirements.txt
+!README.md
 
 # Also include .gitignore itself
 !.gitignore 
