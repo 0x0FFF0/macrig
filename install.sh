@@ -424,7 +424,7 @@ main() {
         fi
         
         print_status "Installing Python 3.13..."
-        $BREW_CMD install python@3.13
+        $BREW_CMD install python@3.13 --force-bottle
         
         # Verify installation
         if PYTHON_CMD=$(check_python313); then
