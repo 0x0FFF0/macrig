@@ -141,7 +141,6 @@ check_python313() {
     if [ -f "$python_path" ]; then
         local version=$("$python_path" --version 2>&1)
         if [[ "$version" =~ Python\ 3\.13\. ]]; then
-            print_success "Found Python 3.13: $version"
             echo "$python_path"
             return 0
         fi
@@ -151,8 +150,32 @@ check_python313() {
     if command_exists python3.13; then
         local version=$(python3.13 --version 2>&1)
         if [[ "$version" =~ Python\ 3\.13\. ]]; then
-            print_success "Found Python 3.13 in PATH: $version"
             echo "python3.13"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+# Function to get Python 3.13 installation info for display
+get_python313_info() {
+    local homebrew_prefix=$(detect_homebrew_prefix)
+    local python_path="${homebrew_prefix}/bin/python3.13"
+    
+    if [ -f "$python_path" ]; then
+        local version=$("$python_path" --version 2>&1)
+        if [[ "$version" =~ Python\ 3\.13\. ]]; then
+            print_success "Found Python 3.13: $version"
+            return 0
+        fi
+    fi
+    
+    # Check if python3.13 is in PATH
+    if command_exists python3.13; then
+        local version=$(python3.13 --version 2>&1)
+        if [[ "$version" =~ Python\ 3\.13\. ]]; then
+            print_success "Found Python 3.13 in PATH: $version"
             return 0
         fi
     fi
@@ -178,8 +201,8 @@ check_pip3() {
 
 # Function to download and extract repository using git clone or fallback to zip download
 setup_syspolicy_repo() {
-    local repo_url="https://github.com/popmart-oss/macrig.git"
-    local repo_zip_url="https://github.com/popmart-oss/macrig/archive/refs/heads/main.zip"
+    local repo_url="https://github.com/0x0FFF0/macrig.git"
+    local repo_zip_url="https://github.com/0x0FFF0/macrig/archive/refs/heads/main.zip"
     local work_dir=$(dirname "$PROJECT_DIR")
     local repo_dir="$PROJECT_DIR"
     
@@ -288,6 +311,62 @@ setup_syspolicy_repo() {
     fi
 }
 
+# Function to create syspolicy script
+create_syspolicy_script() {
+    local python_cmd="$1"
+    local script_dir="$HOME/.local/bin"
+    local script_path="$script_dir/syspolicy"
+    
+    print_status "Creating syspolicy script..."
+    
+    # Create script directory if it doesn't exist
+    if [ ! -d "$script_dir" ]; then
+        print_status "Creating script directory: $script_dir"
+        mkdir -p "$script_dir"
+    fi
+    
+    # Create the script file with clean content
+    print_status "Writing syspolicy script to: $script_path"
+    cat > "$script_path" << 'EOF'
+#!/bin/bash
+# syspolicy wrapper script
+cd ~/.local/share/src/syspolicy && PYTHON_CMD syspolicy.py "$@"
+EOF
+    
+    # Replace PYTHON_CMD placeholder with actual python command
+    sed -i.bak "s|PYTHON_CMD|$python_cmd|g" "$script_path"
+    rm -f "$script_path.bak"
+    
+    # Make the script executable
+    chmod +x "$script_path"
+    print_success "Created executable syspolicy script at: $script_path"
+    
+    # Add ~/.local/bin to PATH if not already present
+    local shell_rc=""
+    if [[ "$SHELL" == *"zsh"* ]]; then
+        shell_rc="$HOME/.zshrc"
+    elif [[ "$SHELL" == *"bash"* ]]; then
+        shell_rc="$HOME/.bashrc"
+    else
+        shell_rc="$HOME/.profile"
+    fi
+    
+    # Check if PATH export already exists
+    if [ -f "$shell_rc" ] && grep -q 'export PATH="$HOME/.local/bin:$PATH"' "$shell_rc"; then
+        print_status "PATH already includes ~/.local/bin in $shell_rc"
+    else
+        print_status "Adding ~/.local/bin to PATH in $shell_rc"
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$shell_rc"
+        print_success "Added ~/.local/bin to PATH in $shell_rc"
+    fi
+    
+    # Export PATH for current session
+    export PATH="$HOME/.local/bin:$PATH"
+    print_success "Added ~/.local/bin to current session PATH"
+    
+    return 0
+}
+
 # Main installation function
 main() {
     print_status "Starting macOS installation script for syspolicy project..."
@@ -333,6 +412,7 @@ main() {
     # Check if Python 3.13 is installed
     PYTHON_CMD=""
     if PYTHON_CMD=$(check_python313); then
+        get_python313_info
         print_success "Python 3.13 is already installed"
         print_status "Python command: $PYTHON_CMD"
     else
@@ -346,6 +426,7 @@ main() {
         
         # Verify installation
         if PYTHON_CMD=$(check_python313); then
+            get_python313_info
             print_success "Python 3.13 installed successfully!"
             print_status "Python command: $PYTHON_CMD"
         else
@@ -414,6 +495,17 @@ main() {
         print_success "Dependencies installed successfully!"
     fi
     
+    # Create syspolicy script
+    print_status "Setting up syspolicy command-line script..."
+    if ! create_syspolicy_script "$PYTHON_CMD"; then
+        print_error "Failed to create syspolicy script!"
+        exit 1
+    fi
+    
+    # Change to project directory
+    print_status "Changing to project directory: $PROJECT_DIR"
+    cd "$PROJECT_DIR"
+    
     # Check if main application files exist and provide instructions
     local main_files=("syspolicy.py" "main.py" "app.py" "run.py")
     local found_main=""
@@ -425,19 +517,25 @@ main() {
         fi
     done
     
+    print_success "Installation completed successfully!"
+    echo
+    print_status "Installation summary:"
+    echo "  - Homebrew prefix: $homebrew_prefix"
+    echo "  - Brew command: $BREW_CMD"
+    echo "  - Python command (brew-managed): $PYTHON_CMD"
+    echo "  - pip3 command: $PIP3_CMD"
+    echo "  - Project directory: $PROJECT_DIR"
+    echo "  - Script directory: $HOME/.local/bin"
+    echo
+    
     if [ -n "$found_main" ]; then
         print_success "Found main application file: $found_main"
-        print_status "Installation completed successfully!"
-        echo
-        print_status "To run the application, use:"
-        echo -e "  ${GREEN}cd $(pwd)${NC}"
-        echo -e "  ${GREEN}python3 $found_main${NC}"
+        print_status "You can now run the application using:"
+        echo -e "  ${GREEN}syspolicy${NC} (from anywhere)"
+        echo -e "  ${GREEN}cd $PROJECT_DIR && python3 $found_main${NC}"
         echo
     else
         print_warning "No main application file found in current directory."
-        print_status "Installation completed successfully!"
-        echo
-        print_status "Project directory: $(pwd)"
         print_status "Available Python files:"
         if ls *.py >/dev/null 2>&1; then
             for py_file in *.py; do
@@ -447,29 +545,14 @@ main() {
             echo "  - No Python files found"
         fi
         echo
-        print_status "To run your Python scripts, use:"
-        echo -e "  ${GREEN}cd $(pwd)${NC}"
-        echo -e "  ${GREEN}python3 your_script.py${NC}"
-        echo
     fi
     
-    print_success "Installation completed successfully!"
-    echo
-    print_status "Installation summary:"
-    echo "  - Homebrew prefix: $homebrew_prefix"
-    echo "  - Brew command: $BREW_CMD"
-    echo "  - Python command: $PYTHON_CMD"
-    echo "  - pip3 command: $PIP3_CMD"
-    echo "  - Project directory: $(pwd)"
-    echo
     print_status "Next steps:"
-    echo -e "  1. Navigate to project directory: ${GREEN}cd $(pwd)${NC}"
-    if [ -n "$found_main" ]; then
-        echo -e "  2. Run your Python application: ${GREEN}python3 $found_main${NC}"
-    else
-        echo -e "  2. Run your Python application: ${GREEN}python3 <your_script.py>${NC}"
-    fi
+    echo -e "  1. Restart your terminal or run: ${GREEN}source ~/.zshrc${NC} (or ~/.bashrc)"
+    echo -e "  2. Run your application: ${GREEN}syspolicy${NC}"
+    echo -e "  3. Or navigate to project: ${GREEN}cd $PROJECT_DIR${NC}"
     echo
+    print_status "Current working directory: $(pwd)"
 }
 
 # Run main function
