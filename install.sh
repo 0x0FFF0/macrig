@@ -124,11 +124,27 @@ detect_homebrew_prefix() {
 check_git_availability() {
     if ! command_exists git; then
         print_error "Git is not installed and is required for Homebrew installation."
-        print_error "Please install Git first using one of these methods:"
-        echo "  1. Install Xcode Command Line Tools: xcode-select --install"
-        echo "  2. Download Git from: https://git-scm.com/download/mac"
-        echo "  3. Install via MacPorts or existing package manager"
-        return 1
+        print_status "Automatically triggering Xcode Command Line Tools installation..."
+        print_status "A GUI dialog will appear - please click 'Install' to proceed."
+        
+        # Trigger xcode-select --install automatically
+        if xcode-select --install 2>/dev/null; then
+            print_success "Xcode Command Line Tools installation initiated!"
+            print_status "Please complete the installation in the GUI dialog that appeared."
+            print_status "After installation completes, please re-run this script."
+            echo
+            print_status "Alternative installation methods if GUI fails:"
+            echo "  1. Download Git from: https://git-scm.com/download/mac"
+            echo "  2. Install via MacPorts or existing package manager"
+            exit 0
+        else
+            print_warning "Failed to trigger automatic Xcode Command Line Tools installation."
+            print_error "Please install Git manually using one of these methods:"
+            echo "  1. Install Xcode Command Line Tools: xcode-select --install"
+            echo "  2. Download Git from: https://git-scm.com/download/mac"
+            echo "  3. Install via MacPorts or existing package manager"
+            return 1
+        fi
     fi
     
     # Check timeout command availability
