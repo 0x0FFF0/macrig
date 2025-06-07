@@ -136,7 +136,7 @@ check_git_availability() {
             print_status "Alternative installation methods if GUI fails:"
             echo "  1. Download Git from: https://git-scm.com/download/mac"
             echo "  2. Install via MacPorts or existing package manager"
-            exit 0
+            return 1
         else
             print_warning "Failed to trigger automatic Xcode Command Line Tools installation."
             print_error "Please install Git manually using one of these methods:"
@@ -417,7 +417,7 @@ check_python310() {
     # Check if python3.10 is in PATH
     if command_exists python3.10; then
         local version=$(python3.10 --version 2>&1)
-        if [[ "$version" =~ Python\ 3\.13\. ]]; then
+        if [[ "$version" =~ Python\ 3\.10\. ]]; then
             echo "python3.10"
             return 0
         fi
@@ -433,7 +433,7 @@ get_python313_info() {
     
     if [ -f "$python_path" ]; then
         local version=$("$python_path" --version 2>&1)
-        if [[ "$version" =~ Python\ 3\.13\. ]]; then
+        if [[ "$version" =~ Python\ 3\.10\. ]]; then
             print_success "Found Python 3.10: $version"
             return 0
         fi
@@ -442,7 +442,7 @@ get_python313_info() {
     # Check if python3.10 is in PATH
     if command_exists python3.10; then
         local version=$(python3.10 --version 2>&1)
-        if [[ "$version" =~ Python\ 3\.13\. ]]; then
+        if [[ "$version" =~ Python\ 3\.10\. ]]; then
             print_success "Found Python 3.10 in PATH: $version"
             return 0
         fi
@@ -666,6 +666,9 @@ main() {
         
         print_status "Installing Homebrew to user directory (no sudo required)..."
         if ! install_homebrew; then
+            print_error "Homebrew installation failed!"
+            print_status "Please check the error messages above and try again."
+            print_status "You may need to install Git first or check your internet connection."
             exit 1
         fi
         
@@ -674,6 +677,8 @@ main() {
             print_status "Brew command: $BREW_CMD"
         else
             print_error "Homebrew installation verification failed!"
+            print_status "Homebrew was installed but cannot be found in expected locations."
+            print_status "Please check the installation manually or restart your terminal."
             exit 1
         fi
     fi
@@ -714,6 +719,8 @@ main() {
             print_status "Python command: $PYTHON_CMD"
         else
             print_error "Python 3.10 installation verification failed!"
+            print_status "Python 3.10 was installed but cannot be found in expected locations."
+            print_status "Please check the Homebrew installation or restart your terminal."
             exit 1
         fi
     fi
@@ -725,6 +732,7 @@ main() {
         print_status "pip3 command: $PIP3_CMD"
     else
         print_error "pip3 is not available! This should be installed with Python 3.10."
+        print_status "Please check your Python installation or try reinstalling Python 3.10."
         exit 1
     fi
     
@@ -734,6 +742,8 @@ main() {
     else
         if ! setup_syspolicy_repo; then
             print_error "Failed to set up project repository!"
+            print_status "Please check your internet connection and repository access."
+            print_status "You can also manually clone the repository and continue."
             exit 1
         fi
         print_success "Project repository set up successfully!"
@@ -760,6 +770,7 @@ main() {
         else
             print_error "Could not find requirements.txt file!"
             print_status "Please ensure requirements.txt exists in the project directory."
+            print_status "You can continue without installing dependencies, but the application may not work properly."
             exit 1
         fi
     else
@@ -782,6 +793,7 @@ main() {
     print_status "Setting up syspolicy command-line script..."
     if ! create_syspolicy_script "$PYTHON_CMD" "$PROJECT_DIR"; then
         print_error "Failed to create syspolicy script!"
+        print_status "You can still run the application directly from the project directory."
         exit 1
     fi
     
