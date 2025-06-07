@@ -683,6 +683,11 @@ main() {
             exit 1
         fi
         
+        # Install OpenSSL@3 first as a dependency for Python 3.13
+        print_status "Installing OpenSSL@3 (required for Python 3.13)..."
+        $BREW_CMD install openssl@3 --force-bottle
+        print_success "OpenSSL@3 installed successfully!"
+        
         print_status "Installing Python 3.13..."
         $BREW_CMD install python@3.13 --force-bottle
         
