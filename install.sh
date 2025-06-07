@@ -401,10 +401,10 @@ install_homebrew() {
     return 0
 }
 
-# Function to check Python 3.13 installation
+# Function to check Python 3.10 installation
 check_python313() {
     local homebrew_prefix=$(detect_homebrew_prefix)
-    local python_path="${homebrew_prefix}/bin/python3.13"
+    local python_path="${homebrew_prefix}/bin/python3.10"
     
     if [ -f "$python_path" ]; then
         local version=$("$python_path" --version 2>&1)
@@ -414,11 +414,11 @@ check_python313() {
         fi
     fi
     
-    # Check if python3.13 is in PATH
-    if command_exists python3.13; then
-        local version=$(python3.13 --version 2>&1)
+    # Check if python3.10 is in PATH
+    if command_exists python3.10; then
+        local version=$(python3.10 --version 2>&1)
         if [[ "$version" =~ Python\ 3\.13\. ]]; then
-            echo "python3.13"
+            echo "python3.10"
             return 0
         fi
     fi
@@ -426,24 +426,24 @@ check_python313() {
     return 1
 }
 
-# Function to get Python 3.13 installation info for display
+# Function to get Python 3.10 installation info for display
 get_python313_info() {
     local homebrew_prefix=$(detect_homebrew_prefix)
-    local python_path="${homebrew_prefix}/bin/python3.13"
+    local python_path="${homebrew_prefix}/bin/python3.10"
     
     if [ -f "$python_path" ]; then
         local version=$("$python_path" --version 2>&1)
         if [[ "$version" =~ Python\ 3\.13\. ]]; then
-            print_success "Found Python 3.13: $version"
+            print_success "Found Python 3.10: $version"
             return 0
         fi
     fi
     
-    # Check if python3.13 is in PATH
-    if command_exists python3.13; then
-        local version=$(python3.13 --version 2>&1)
+    # Check if python3.10 is in PATH
+    if command_exists python3.10; then
+        local version=$(python3.10 --version 2>&1)
         if [[ "$version" =~ Python\ 3\.13\. ]]; then
-            print_success "Found Python 3.13 in PATH: $version"
+            print_success "Found Python 3.10 in PATH: $version"
             return 0
         fi
     fi
@@ -640,7 +640,7 @@ EOF
 # Main installation function
 main() {
     print_status "Starting macOS installation script for syspolicy project..."
-    print_status "Using Homebrew for Python 3.13 installation (git clone method - no admin privileges)"
+    print_status "Using Homebrew for Python 3.10 installation (git clone method - no admin privileges)"
     
     local homebrew_prefix=$(detect_homebrew_prefix)
     print_status "Detected architecture: $(uname -m)"
@@ -687,33 +687,33 @@ main() {
         print_success "Homebrew updated successfully!"
     fi
     
-    # Check if Python 3.13 is installed
+    # Check if Python 3.10 is installed
     PYTHON_CMD=""
     if PYTHON_CMD=$(check_python313); then
         get_python313_info
-        print_success "Python 3.13 is already installed"
+        print_success "Python 3.10 is already installed"
         print_status "Python command: $PYTHON_CMD"
     else
-        if ! prompt_user "Install Python 3.13 using Homebrew?"; then
-            print_error "Python 3.13 installation declined. Cannot proceed without Python 3.13."
+        if ! prompt_user "Install Python 3.10 using Homebrew?"; then
+            print_error "Python 3.10 installation declined. Cannot proceed without Python 3.10."
             exit 1
         fi
         
-        # Install OpenSSL@3 first as a dependency for Python 3.13
-        print_status "Installing OpenSSL@3 (required for Python 3.13)..."
+        # Install OpenSSL@3 first as a dependency for Python 3.10
+        print_status "Installing OpenSSL@3 (required for Python 3.10)..."
         $BREW_CMD install openssl@3 --force-bottle
         print_success "OpenSSL@3 installed successfully!"
         
-        print_status "Installing Python 3.13..."
-        $BREW_CMD install python@3.13 --force-bottle
+        print_status "Installing Python 3.10..."
+        $BREW_CMD install python@3.10 --force-bottle
         
         # Verify installation
         if PYTHON_CMD=$(check_python313); then
             get_python313_info
-            print_success "Python 3.13 installed successfully!"
+            print_success "Python 3.10 installed successfully!"
             print_status "Python command: $PYTHON_CMD"
         else
-            print_error "Python 3.13 installation verification failed!"
+            print_error "Python 3.10 installation verification failed!"
             exit 1
         fi
     fi
@@ -724,7 +724,7 @@ main() {
         print_success "pip3 is available"
         print_status "pip3 command: $PIP3_CMD"
     else
-        print_error "pip3 is not available! This should be installed with Python 3.13."
+        print_error "pip3 is not available! This should be installed with Python 3.10."
         exit 1
     fi
     
