@@ -6,6 +6,8 @@
 !syspolicy.py
 !requirements.txt
 !README.md
+!bin/
+!bin/*
 
 # Also include .gitignore itself
 !.gitignore 
